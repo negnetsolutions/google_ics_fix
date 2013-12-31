@@ -19,37 +19,91 @@ class google_ics_fix {
     $this->fixRepeatingUids();
 
     //write new fixed file
-    $this->writeFixedCal($ics_file.'_gcal_fixed');
+    $this->writeFixedCal($ics_file);
 
-    return $ics_file.'_gcal_fixed';
+    return $ics_file;
 
   }
 
   private function fixRepeatingUids()
   {
-    $remove_list = array();
+    $fix_list = array();
+    $revision_stamps = array();
 
     if(!isset($this->cal['VEVENT']) || count($this->cal['VEVENT']) == 0) {
       return;
     }
 
-    foreach($this->cal['VEVENT'] as $i => $event) {
+    foreach($this->cal['VEVENT'] as $event) {
 
       if( preg_match("/_R[0-9]{8}T[0-9]{6}/u", $event['UID'], $matches) ) {
         // looks like we found a possible hit for this hack
-        // check to see if another event has the naturalized uid. If so
-        // we want to remove it
+        // check to see if another event has the naturalized uid or an older
+        // revision. If so we want to find the older one and make sure that 
+        // the UNTIL is set a day before this event starts.
+
         $naturalized_uid = str_replace($matches[0],'',$event['UID']);
-        $remove_list[] = $naturalized_uid;
+        $revision_stamp = substr($matches[0],2);
+        $revision_dt = new DateTime($revision_stamp);
+        $revision_timestamp = $revision_dt->getTimestamp();
+
+        $dt = new DateTime($event['DTSTART']);
+        $dt->modify('-1 second');
+        //set new until to 1 second before start of next revised
+        //event.
+        $new_until = $dt->format('Ymd\THis');
+        $revision_stamps[] = $revision_timestamp;
+        $fix_list[] = array('uid'=>$naturalized_uid,'until'=>$new_until,'revision_ts'=>$revision_timestamp,'dtstart'=>$event['DTSTART']);
+      }
+    }
+
+    //sort fix list by revision date DESC so we can iterate through changing 
+    //each revision as we go
+    array_multisort($revision_stamps, SORT_DESC, $fix_list);
+
+    $prune_list = array();
+    foreach($fix_list as $fix) {
+    
+      //iterate through events looking for matching naturalized uids with 
+      //revisions before current revision
+      foreach($this->cal['VEVENT'] as $i => $event) {
+
+        if( preg_match("/(".strstr($fix['uid'],'@',true).")(_R[0-9]{8}T[0-9]{6})*/u", $event['UID'], $matches) ) {
+
+          $revision_ts = 0;
+          if( isset($matches[2]) ){ //event has a revision, get revision timestamp
+            $dt = new DateTime(substr($matches[2],2));
+            $revision_ts = $dt->getTimestamp();
+          }
+
+          if( $fix['revision_ts'] > $revision_ts ) { //event until needs to be updated
+
+            //check if the event's DTSTART is the same. If so, prune the 
+            //event. Otherwise fix the RRULE
+            if( $event['DTSTART'] == $fix['dtstart'] ){
+              $prune_list[] = $event['UID'];
+            }
+            else if(isset($event['RRULE'])) { //make sure event has RRULE
+              preg_match("/UNTIL=[0-9]{8}T[0-9]{6}Z/u", $event['RRULE'], $matches);
+
+              if( isset($matches[0]) ){
+                //update the RRULE with the new fixed UNTIL
+                $event['VEVENT'][$i]['RRULE'] = str_replace($matches[0],'UNTIL='.$fix['until'].'Z',$event['RRULE']);
+              }
+            }
+
+          }
+        }
       }
     }
 
     $new_vevent = array();
-    foreach( $this->cal['VEVENT'] as $i => $event) {
-
-      if( array_search($event['UID'],$remove_list) === false) {
+    foreach( $this->cal['VEVENT'] as $event ){
+      //prune bad events
+      if(array_search($event['UID'],$prune_list) === false){
         $new_vevent[] = $event;
       }
+    
     }
 
     $this->cal['VEVENT'] = $new_vevent;
