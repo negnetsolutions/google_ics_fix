@@ -47,13 +47,22 @@ class google_ics_fix {
         $revision_dt = new DateTime($revision_stamp);
         $revision_timestamp = $revision_dt->getTimestamp();
 
-        $dt = new DateTime($event['DTSTART']);
+        $keys = array_keys($event);
+        $dtstart = 0;
+        foreach($keys as $keyword) {
+          if(strstr($keyword,'DTSTART')){
+            $dtstart = $event[$keyword];
+          }
+        }
+
+        
+        $dt = new DateTime($dtstart);
         $dt->modify('-1 second');
         //set new until to 1 second before start of next revised
         //event.
         $new_until = $dt->format('Ymd\THis');
         $revision_stamps[] = $revision_timestamp;
-        $fix_list[] = array('uid'=>$naturalized_uid,'until'=>$new_until,'revision_ts'=>$revision_timestamp,'dtstart'=>$event['DTSTART']);
+        $fix_list[] = array('uid'=>$naturalized_uid,'until'=>$new_until,'revision_ts'=>$revision_timestamp,'dtstart'=>$dtstart);
       }
     }
 
@@ -80,7 +89,15 @@ class google_ics_fix {
 
             //check if the event's DTSTART is the same. If so, prune the 
             //event. Otherwise fix the RRULE
-            if( $event['DTSTART'] == $fix['dtstart'] ){
+            $keys = array_keys($event);
+            $dtstart = 0;
+            foreach($keys as $keyword) {
+              if(strstr($keyword,'DTSTART')){
+                $dtstart = $event[$keyword];
+              }
+            }
+
+            if( $dtstart == $fix['dtstart'] ){
               $prune_list[] = $event['UID'];
             }
             else if(isset($event['RRULE'])) { //make sure event has RRULE
@@ -113,6 +130,7 @@ class google_ics_fix {
     $file = fopen($ics_file, 'w');
 
     //write headers
+    fwrite($file, "BEGIN:VCALENDAR\n");
     fwrite($file, $this->raw_extra);
 
     foreach($this->cal['VEVENT'] as $items) {
@@ -201,18 +219,18 @@ class google_ics_fix {
       $keyword = $this->last_keyword; 
       switch ($type) {
       case 'VEVENT': 
-        $value = $this->cal[$type][$this->event_count - 1][$keyword].$value;
+        $value = $this->cal[$type][$this->event_count - 1][$keyword]."\n".$value;
         break;
       case 'VTODO' : 
-        $value = $this->cal[$type][$this->todo_count - 1][$keyword].$value;
+        $value = $this->cal[$type][$this->todo_count - 1][$keyword]."\n".$value;
         break;
       }
     }
 
-    if (stristr($keyword,"DTSTART") or stristr($keyword,"DTEND")) {
-      $keyword = explode(";", $keyword);
-      $keyword = $keyword[0];
-    }
+    // if (stristr($keyword,"DTSTART") or stristr($keyword,"DTEND")) {
+    //   $keyword = explode(";", $keyword);
+    //   $keyword = $keyword[0];
+    // }
 
     switch ($type) { 
     case "VTODO": 
@@ -236,7 +254,9 @@ class google_ics_fix {
   function split_key_value($text) {
     preg_match("/([^:]+)[:]([\w\W]*)/", $text, $matches);
     if(count($matches) == 0){return false;}
+
     $matches = array_splice($matches, 1, 2);
+
     return $matches;
   }
 
