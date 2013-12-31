@@ -19,9 +19,9 @@ class google_ics_fix {
     $this->fixRepeatingUids();
 
     //write new fixed file
-    $this->writeFixedCal($ics_file);
+    $this->writeFixedCal($ics_file.'_fixed');
 
-    return $ics_file;
+    return true;
 
   }
 
