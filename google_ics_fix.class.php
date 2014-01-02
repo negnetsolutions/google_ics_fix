@@ -55,14 +55,18 @@ class google_ics_fix {
           }
         }
 
-        
         $dt = new DateTime($dtstart);
+        $dt = new DateTime($dt->format('Ymd'));
         $dt->modify('-1 second');
+
+        // $dt = new DateTime($dtstart);
+        // $dt->modify('-1 second');
         //set new until to 1 second before start of next revised
         //event.
         $new_until = $dt->format('Ymd\THis');
         $revision_stamps[] = $revision_timestamp;
         $fix_list[] = array('uid'=>$naturalized_uid,'until'=>$new_until,'revision_ts'=>$revision_timestamp,'dtstart'=>$dtstart);
+
       }
     }
 
@@ -86,7 +90,6 @@ class google_ics_fix {
           }
 
           if( $fix['revision_ts'] > $revision_ts ) { //event until needs to be updated
-
             //check if the event's DTSTART is the same. If so, prune the 
             //event. Otherwise fix the RRULE
             $keys = array_keys($event);
@@ -105,7 +108,7 @@ class google_ics_fix {
 
               if( isset($matches[0]) ){
                 //update the RRULE with the new fixed UNTIL
-                $event['VEVENT'][$i]['RRULE'] = str_replace($matches[0],'UNTIL='.$fix['until'].'Z',$event['RRULE']);
+                $this->cal['VEVENT'][$i]['RRULE'] = str_replace($matches[0],'UNTIL='.$fix['until'].'Z',$event['RRULE']);
               }
             }
 
