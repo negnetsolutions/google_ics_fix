@@ -222,10 +222,10 @@ class google_ics_fix {
       $keyword = $this->last_keyword; 
       switch ($type) {
       case 'VEVENT': 
-        $value = $this->cal[$type][$this->event_count - 1][$keyword]."\n".$value;
+        $value = $this->cal[$type][$this->event_count - 1][$keyword]."".$value;
         break;
       case 'VTODO' : 
-        $value = $this->cal[$type][$this->todo_count - 1][$keyword]."\n".$value;
+        $value = $this->cal[$type][$this->todo_count - 1][$keyword]."".$value;
         break;
       }
     }
