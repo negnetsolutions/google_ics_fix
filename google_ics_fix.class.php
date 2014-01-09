@@ -131,8 +131,6 @@ class google_ics_fix {
 
   private function writeFixedCal($ics_file) {
 
-    echo "<pre>".print_r($this->cal['VEVENT'],true);
-    exit;
     $file = fopen($ics_file, 'w');
 
     //write headers
