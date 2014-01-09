@@ -130,6 +130,9 @@ class google_ics_fix {
   }
 
   private function writeFixedCal($ics_file) {
+
+    echo "<pre>".print_r($this->cal['VEVENT'],true);
+    exit;
     $file = fopen($ics_file, 'w');
 
     //write headers
@@ -255,7 +258,7 @@ class google_ics_fix {
    * @return {Array} array("VCALENDAR", "Begin")
    */
   function split_key_value($text) {
-    preg_match("/([^:]+)[:]([\w\W]*)/", $text, $matches);
+    preg_match("/^([^:\s]+)[:]([\w\W]*)/", $text, $matches);
     if(count($matches) == 0){return false;}
 
     $matches = array_splice($matches, 1, 2);
