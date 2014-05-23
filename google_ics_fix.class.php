@@ -1,13 +1,14 @@
 <?php
 
 class google_ics_fix {
-  
+
   public /** @type {Array} */ $cal;
   /* Which keyword has been added to cal at last? */
   private /** @type {string} */ $last_keyword;
   private $raw_extra;
+  private $event_count;
 
-  /* 
+  /*
    * Input: Google formatted ICS file
    * Output: Recurring Event Fixed ICS file (string_location_to_fixed_file)
    */
@@ -39,7 +40,7 @@ class google_ics_fix {
       if( preg_match("/_R[0-9]{8}T[0-9]{6}/u", $event['UID'], $matches) ) {
         // looks like we found a possible hit for this hack
         // check to see if another event has the naturalized uid or an older
-        // revision. If so we want to find the older one and make sure that 
+        // revision. If so we want to find the older one and make sure that
         // the UNTIL is set a day before this event starts.
 
         $naturalized_uid = str_replace($matches[0],'',$event['UID']);
@@ -70,14 +71,14 @@ class google_ics_fix {
       }
     }
 
-    //sort fix list by revision date DESC so we can iterate through changing 
+    //sort fix list by revision date DESC so we can iterate through changing
     //each revision as we go
     array_multisort($revision_stamps, SORT_DESC, $fix_list);
 
     $prune_list = array();
     foreach($fix_list as $fix) {
-    
-      //iterate through events looking for matching naturalized uids with 
+
+      //iterate through events looking for matching naturalized uids with
       //revisions before current revision
       foreach($this->cal['VEVENT'] as $i => $event) {
 
@@ -90,7 +91,7 @@ class google_ics_fix {
           }
 
           if( $fix['revision_ts'] > $revision_ts ) { //event until needs to be updated
-            //check if the event's DTSTART is the same. If so, prune the 
+            //check if the event's DTSTART is the same. If so, prune the
             //event. Otherwise fix the RRULE
             $keys = array_keys($event);
             $dtstart = 0;
@@ -123,7 +124,7 @@ class google_ics_fix {
       if(array_search($event['UID'],$prune_list) === false){
         $new_vevent[] = $event;
       }
-    
+
     }
 
     $this->cal['VEVENT'] = $new_vevent;
@@ -143,7 +144,7 @@ class google_ics_fix {
       foreach($items as $keyword=>$data) {
         fwrite($file, $keyword.':'.$data."\n");
       }
-    
+
       fwrite($file, "END:VEVENT\n");
     }
 
@@ -164,7 +165,7 @@ class google_ics_fix {
         if($add === false){
           $this->add_to_array($type, false, $line);
           continue;
-        } 
+        }
 
         list($keyword, $value) = $add;
 
@@ -173,59 +174,59 @@ class google_ics_fix {
         }
         switch ($line) {
           // http://www.kanzaki.com/docs/ical/vtodo.html
-        case "BEGIN:VTODO": 
+        case "BEGIN:VTODO":
           $this->todo_count++;
-          $type = "VTODO"; 
-          break; 
+          $type = "VTODO";
+          break;
 
           // http://www.kanzaki.com/docs/ical/vevent.html
-        case "BEGIN:VEVENT": 
+        case "BEGIN:VEVENT":
           #echo "vevent gematcht";
           $this->event_count++;
-          $type = "VEVENT"; 
-          break; 
+          $type = "VEVENT";
+          break;
 
           //all other special strings
-        case "BEGIN:VCALENDAR": 
-        case "BEGIN:DAYLIGHT": 
+        case "BEGIN:VCALENDAR":
+        case "BEGIN:DAYLIGHT":
 
           // http://www.kanzaki.com/docs/ical/vtimezone.html
-        case "BEGIN:VTIMEZONE": 
-        case "BEGIN:STANDARD": 
+        case "BEGIN:VTIMEZONE":
+        case "BEGIN:STANDARD":
           $type = $value;
-          break; 
-        case "END:VTODO": // end special text - goto VCALENDAR key 
-        case "END:VEVENT": 
-        case "END:VCALENDAR": 
-        case "END:DAYLIGHT": 
-        case "END:VTIMEZONE": 
-        case "END:STANDARD": 
-          $type = "VCALENDAR"; 
-          break; 
+          break;
+        case "END:VTODO": // end special text - goto VCALENDAR key
+        case "END:VEVENT":
+        case "END:VCALENDAR":
+        case "END:DAYLIGHT":
+        case "END:VTIMEZONE":
+        case "END:STANDARD":
+          $type = "VCALENDAR";
+          break;
         default:
           $this->add_to_array($type, $keyword, $value);
-          break; 
-        } 
+          break;
+        }
       }
-      return $this->cal; 
+      return $this->cal;
     }
   }
 
-  /** 
+  /**
    * Add to $this->ical array one value and key.
-   * 
-   * @param {string} $type This could be VTODO, VEVENT, VCALENDAR, ... 
+   *
+   * @param {string} $type This could be VTODO, VEVENT, VCALENDAR, ...
    * @param {string} $keyword
-   * @param {string} $value 
-   */ 
+   * @param {string} $value
+   */
   function add_to_array($type, $keyword, $value) {
-    if ($keyword == false) { 
-      $keyword = $this->last_keyword; 
+    if ($keyword == false) {
+      $keyword = $this->last_keyword;
       switch ($type) {
-      case 'VEVENT': 
+      case 'VEVENT':
         $value = $this->cal[$type][$this->event_count - 1][$keyword]."".$value;
         break;
-      case 'VTODO' : 
+      case 'VTODO' :
         $value = $this->cal[$type][$this->todo_count - 1][$keyword]."".$value;
         break;
       }
@@ -236,19 +237,19 @@ class google_ics_fix {
     //   $keyword = $keyword[0];
     // }
 
-    switch ($type) { 
-    case "VTODO": 
+    switch ($type) {
+    case "VTODO":
       $this->cal[$type][$this->todo_count - 1][$keyword] = $value;
       #$this->cal[$type][$this->todo_count]['Unix'] = $unixtime;
-      break; 
-    case "VEVENT": 
-      $this->cal[$type][$this->event_count - 1][$keyword] = $value; 
-      break; 
-    // default: 
-    //   $this->cal[$type][$keyword] = $value; 
-    //   break; 
-    } 
-    $this->last_keyword = $keyword; 
+      break;
+    case "VEVENT":
+      $this->cal[$type][$this->event_count - 1][$keyword] = $value;
+      break;
+    // default:
+    //   $this->cal[$type][$keyword] = $value;
+    //   break;
+    }
+    $this->last_keyword = $keyword;
   }
 
   /**
